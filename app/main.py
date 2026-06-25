@@ -2,7 +2,7 @@ import os
 import io
 import logging
 from typing import Any
-
+from infra.pptx_adapter import PPTXBuilder
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -131,45 +131,95 @@ async def document_catcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
     
     try:
+        # 1. UI Feedback: Downloading
+        await status_msg.edit_text(
+            f"📥 <b>Downloading:</b> <code>{file_name}</code>\n"
+            f"<i>Securely transferring to RAM buffer...</i>",
+            parse_mode='HTML'
+        )
+
         # Secure Telegram RAM Download
         tg_file = await context.bot.get_file(document.file_id)
         h5p_buffer = io.BytesIO()
         await tg_file.download_to_memory(out=h5p_buffer)
         h5p_buffer.seek(0) 
         
+        # 2. UI Feedback: Parsing
         await status_msg.edit_text(
             f"⚙️ <b>Processing:</b> <code>{file_name}</code>\n"
             f"<i>Decompressing architecture and validating internal JSON schemas...</i>",
             parse_mode='HTML'
         )
         
-        # Invoke the Domain Engine
+        # Invoke the Domain Engine (Called only ONCE!)
         parsed_data = await H5PParser.extract_architecture(h5p_buffer)
-        
-        # Dynamic UI based on extracted Pydantic data
         asset_count = len(parsed_data.raw_assets)
         
+        # 3. UI Feedback: Compiling
         await status_msg.edit_text(
             f"✅ <b>Extraction Complete</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"<b>Title:</b> {parsed_data.metadata.title}\n"
             f"<b>Type:</b> {parsed_data.metadata.mainLibrary}\n"
-            f"<b>Assets Extracted:</b> {asset_count} images/audio\n\n"
-            f"<i>Awaiting Infrastructure Layer to compile PPTX/PDF...</i>",
+            f"<b>Assets:</b> {asset_count} media files mapped\n\n"
+            f"<i>🏗️ Compiling native PPTX presentation...</i>",
             parse_mode='HTML'
         )
+        
+        # Invoke the Infrastructure Engine (Phase 3)
+        pptx_stream = await PPTXBuilder.build_presentation(parsed_data)
+        
+        # Format the new filename cleanly (removing spaces and illegal characters)
+        safe_title = parsed_data.metadata.title.replace(' ', '_').replace('/', '_')
+        output_filename = f"{safe_title}_EDU_0.pptx"
+
+        # 4. UI Feedback: Dispatching
+        await status_msg.edit_text(
+            f"🚀 <b>Compilation Successful!</b>\n"
+            f"<i>Dispatching <code>{output_filename}</code> to your chat...</i>",
+            parse_mode='HTML'
+        )
+
+        # Ensure chat exists for strict type-checking (Satisfies Pylance)
+        if not update.effective_chat:
+            return
+
+        # Phase 4: Deliver the Final File (With extended timeouts for large files)
+        await context.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=pptx_stream,
+            filename=output_filename,
+            caption=(
+                f"🎯 <b>Transformation Complete</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"📄 <b>Original:</b> <code>{file_name}</code>\n"
+                f"📊 <b>Embedded:</b> {asset_count} high-res assets\n"
+                f"⚡ <i>Powered by EDU. 0 Engine</i>"
+            ),
+            parse_mode='HTML',
+            read_timeout=120,   # ◄── Tells Python to wait patiently for large uploads
+            write_timeout=120   # ◄── Prevents timeout exceptions
+        )
+        
+        # Clean up the chat by safely deleting the loading status message
+        try:
+            await status_msg.delete()
+        except Exception as delete_err:
+            logger.warning(f"Could not delete status message: {delete_err}")
         
     except ValueError as e:
         await status_msg.edit_text(
             f"❌ <b>Extraction Failed</b>\n"
-            f"{str(e)}",
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"<i>{str(e)}</i>",
             parse_mode='HTML'
         )
     except Exception as e:
-        logger.error(f"Unexpected error during download/parsing: {e}")
+        logger.error(f"Unexpected pipeline error: {e}")
         await status_msg.edit_text(
             f"⚠️ <b>System Anomaly</b>\n"
-            f"An unexpected error occurred during extraction. Please check system logs.",
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"An unexpected error occurred during the conversion pipeline. Please check system logs.",
             parse_mode='HTML'
         )
 
