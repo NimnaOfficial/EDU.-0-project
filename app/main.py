@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==========================================
-# 2. USER INTERFACE (Messages)
+# 2. PREMIUM UI/UX STRINGS (Frontend Layer)
 # ==========================================
 WELCOME_MSG = (
     "⚡ <b>EDU. 0 — Core Engine</b>\n"
@@ -44,15 +44,62 @@ WELCOME_MSG = (
     "<i>Select a module below, or simply drop a file into this chat to begin.</i>"
 )
 
-GUIDE_MSG = (
-    "📚 <b>Command Center Guide</b>\n"
+HELP_MAIN_MSG = (
+    "🛠️ <b>EDU. 0 — Help Center</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    "<b>1. Auto-Detect:</b> Drag and drop an <code>.h5p</code> or <code>.pptx</code> file directly here.\n"
-    "<b>2. Batch Processing:</b> Use the Merge module to queue multiple documents.\n"
-    "<b>3. UI Configuration:</b> Access layout settings via the inline module menus.\n\n"
-    "<i>System Status: 🟢 Online & Ready</i>"
+    "Welcome to the central knowledge base. Please select a module below to view its step-by-step documentation.\n\n"
+    "🤖 <b>Available Commands:</b>\n"
+    "<code>/start</code> — <i>Reboots the core engine & opens the main dashboard.</i>"
 )
 
+HELP_EXTRACT_MSG = (
+    "📤 <b>Guide: Extract & Convert</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "<i>Convert interactive .h5p web packages into static, downloadable handouts or presentations.</i>\n\n"
+    "1️⃣ Click <b>'Extract H5P to PDF/PPTX'</b> on the main menu.\n"
+    "2️⃣ Drag and drop your <code>.h5p</code> file into the chat.\n"
+    "3️⃣ The engine will map the assets into RAM.\n"
+    "4️⃣ Choose your preferred output format (<b>PPTX</b>, <b>PDF</b>, or <b>BOTH</b>).\n"
+    "5️⃣ Download your perfectly scaled native documents!"
+)
+
+HELP_MERGE_MSG = (
+    "🗂️ <b>Guide: Compile & Merge</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "<i>Stitch multiple PDFs or PPTXs into a single master document.</i>\n\n"
+    "1️⃣ Click <b>'Compile & Merge'</b> on the main menu.\n"
+    "2️⃣ Upload your first file (e.g., <code>Doc1.pdf</code>). This <b>locks</b> the queue to that format!\n"
+    "3️⃣ Upload additional files of the <i>same</i> format one by one.\n"
+    "4️⃣ Check the live queue list to ensure the correct order.\n"
+    "5️⃣ Click <b>'Compile Master Document'</b>.\n"
+    "6️⃣ Download the stitched master file."
+)
+
+HELP_REVERSE_MSG = (
+    "🔄 <b>Guide: Reverse Engineer</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "<i>Turn boring static slides into high-resolution, interactive web packages.</i>\n\n"
+    "1️⃣ Click <b>'Reverse Engineer to H5P'</b> on the main menu.\n"
+    "2️⃣ Upload a standard <code>.pdf</code> or <code>.pptx</code> presentation.\n"
+    "3️⃣ Wait as the bot converts and rasterizes every page into 4K resolution.\n"
+    "4️⃣ Download the generated <code>.h5p</code> archive.\n"
+    "5️⃣ Import it into Lumi, Moodle, or Canvas to add interactive web quizzes!"
+)
+
+HELP_CONTACT_MSG = (
+    "👨‍💻 <b>Developer & Support</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "<b>EDU. 0</b> was engineered with Clean Architecture to provide seamless, lag-free educational transformations.\n\n"
+    "🏗️ <b>System Architect:</b> Nima\n"
+    "📡 <b>Connect & Support:</b>\n"
+    "💬 <b>Telegram:</b> @nimna07\n"
+    "🐙 <b>GitHub:</b> <a href='https://github.com/NimnaOfficial'>NimnaOfficial</a>\n\n"
+    "<i>Encountered a bug? Send a message with the file and logs!</i>"
+)
+
+# ==========================================
+# 3. INTERACTIVE WIDGETS
+# ==========================================
 def build_main_menu() -> InlineKeyboardMarkup:
     """Builds the main dashboard buttons."""
     keyboard = [
@@ -62,6 +109,21 @@ def build_main_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("⚙️ System Guide & Help", callback_data='menu_guide')]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+def build_help_menu() -> InlineKeyboardMarkup:
+    """Builds the sub-menu for the Help Center."""
+    keyboard = [
+        [InlineKeyboardButton("📖 Guide: Extract H5P", callback_data='guide_extract')],
+        [InlineKeyboardButton("🗂️ Guide: Merge Files", callback_data='guide_merge')],
+        [InlineKeyboardButton("🔄 Guide: Reverse Engineer", callback_data='guide_reverse')],
+        [InlineKeyboardButton("👨‍💻 Developer & Contact", callback_data='guide_contact')],
+        [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data='menu_back')]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def build_back_to_help_btn() -> InlineKeyboardMarkup:
+    """Simple back button for guide pages."""
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Help Center", callback_data='menu_guide')]])
 
 # ==========================================
 # 3. ROUTERS & COMPILERS
@@ -99,18 +161,52 @@ async def inline_menu_router(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     # --- Main Dashboard Navigation ---
+    # --- Main Dashboard Navigation ---
+    if query.data == 'menu_reverse':
+        if context.user_data is not None:
+            context.user_data['active_module'] = 'reverse'
+        await query.edit_message_text(
+            "🔄 <b>Reverse Engineer Activated</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "<i>Upload a standard .pdf or .pptx file, and I will rasterize it into a high-res interactive .h5p web package.</i>",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancel", callback_data='menu_back')]]),
+            parse_mode='HTML'
+        )
+        return
+        
+    if query.data == 'menu_convert':
+        if context.user_data is not None:
+            context.user_data['active_module'] = 'convert'
+        await query.edit_message_text(
+            "⏳ <i>Loading Extraction module...</i>\n\nPlease upload your target .h5p file.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancel", callback_data='menu_back')]]),
+            parse_mode='HTML'
+        )
+        return
+
+    # --- HELP CENTER ROUTING ---
     if query.data == 'menu_guide':
-        await query.edit_message_text(
-            text=GUIDE_MSG, 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Return to Main Dashboard", callback_data='menu_back')]]),
-            parse_mode='HTML'
-        )
-    elif query.data == 'menu_back':
-        await query.edit_message_text(
-            text=WELCOME_MSG, 
-            reply_markup=build_main_menu(), 
-            parse_mode='HTML'
-        )
+        await query.edit_message_text(text=HELP_MAIN_MSG, reply_markup=build_help_menu(), parse_mode='HTML')
+        return
+    elif query.data == 'guide_extract':
+        await query.edit_message_text(text=HELP_EXTRACT_MSG, reply_markup=build_back_to_help_btn(), parse_mode='HTML')
+        return
+    elif query.data == 'guide_merge':
+        await query.edit_message_text(text=HELP_MERGE_MSG, reply_markup=build_back_to_help_btn(), parse_mode='HTML')
+        return
+    elif query.data == 'guide_reverse':
+        await query.edit_message_text(text=HELP_REVERSE_MSG, reply_markup=build_back_to_help_btn(), parse_mode='HTML')
+        return
+    elif query.data == 'guide_contact':
+        await query.edit_message_text(text=HELP_CONTACT_MSG, reply_markup=build_back_to_help_btn(), disable_web_page_preview=True, parse_mode='HTML')
+        return
+
+    # --- RETURN HOME ---
+    if query.data == 'menu_back':
+        if context.user_data is not None:
+            context.user_data.clear() # Clear any active states!
+        await query.edit_message_text(text=WELCOME_MSG, reply_markup=build_main_menu(), parse_mode='HTML')
+        return
     else:
         await query.edit_message_text(
             text=f"⏳ <i>Loading module [{query.data}]...</i>\n\nPlease upload your target file.",
