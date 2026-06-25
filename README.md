@@ -58,14 +58,14 @@ EDU_0_PROJECT/
 ## 💻 Local Development Setup
 
 **Prerequisites**
-* Docker Desktop installed.
-* A Telegram Bot Token from @BotFather.
+* [**Docker Desktop**](https://docs.docker.com/desktop/setup/install/windows-install/) installed.
+* A Telegram Bot Token from [**@BotFather**](https://t.me/BotFather).
 
 **Installation Steps**
 
 1 *Clone the repository:*
 ```
-git clone [https://github.com/YOUR_USERNAME/edu-0-project.git](https://github.com/YOUR_USERNAME/edu-0-project.git)
+git clone https://github.com/NimnaOfficial/EDU.-0-project.git
 cd edu-0-project
 ```
 2 *Configure Environment Variables:*
