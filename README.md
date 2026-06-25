@@ -54,3 +54,29 @@ EDU_0_PROJECT/
 ├── requirements.txt            # Python dependencies
 └── README.md
 ```
+
+## 💻 Local Development Setup
+
+**Prerequisites**
+* Docker Desktop installed.
+* A Telegram Bot Token from @BotFather.
+
+**Installation Steps**
+
+1 *Clone the repository:*
+```
+git clone [https://github.com/YOUR_USERNAME/edu-0-project.git](https://github.com/YOUR_USERNAME/edu-0-project.git)
+cd edu-0-project
+```
+2 *Configure Environment Variables:*
+
+Create a `.env` file in the root directory and add your token:
+```
+BOT_TOKEN=your_telegram_bot_token_here
+```
+3 *Build and Run the Container:*
+```
+docker-compose up -d --build
+```
+
+*The engine will download the base images, install LibreOffice dependencies, and boot the bot. Watch the logs using docker-compose logs -f to see the "EDU. 0 Engine is online" confirmation.*
