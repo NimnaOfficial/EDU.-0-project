@@ -1,0 +1,91 @@
+# ====================================================================
+# EDU. 0 - Master Gitignore Blueprint
+# ====================================================================
+
+# --- Environment & Security Secrets ---
+# Never commit your active Telegram tokens or API keys!
+.env
+.env.local
+.env.*.local
+*.env
+secrets.json
+
+# --- Python Core & Bytecode ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Virtual Environments ---
+# If you test or run code locally outside of Docker
+.venv/
+venv/
+ENV/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Docker Specifics ---
+# Ignores local container data directories if you create them later
+.docker/
+docker-compose.override.yml
+
+# --- In-Memory Staging & OS Artifacts ---
+# Prevents testing documents from accidentally being tracked
+*.h5p
+*.pptx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# --- Operating System Files ---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.Trashes
+VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# --- IDEs and Editors ---
+# JetBrains (PyCharm)
+.idea/
+*.iws
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+.history/
+*.code-workspace

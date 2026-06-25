@@ -1,7 +1,7 @@
+import os
 import logging
-import traceback
-import html
-import json
+from typing import Any
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -12,57 +12,75 @@ from telegram.ext import (
     filters
 )
 
-# 1. Setup Logging (Crucial for Docker deployment)
+# ==========================================
+# 1. SERVER LOGGING (Infrastructure Layer)
+# ==========================================
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# 2. UI Strings & Guides
+# ==========================================
+# 2. PREMIUM UI/UX STRINGS (Frontend Layer)
+# ==========================================
 WELCOME_MSG = (
-    "👋 Welcome to <b>EDU. 0</b>!\n\n"
-    "Your all-in-one suite for transforming educational content. "
-    "Convert H5P to static files, merge presentations, or build interactive web apps from PDFs.\n\n"
-    "<i>What would you like to do today?</i>"
+    "⚡ <b>EDU. 0 — Core Engine</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "Your advanced suite for transforming educational architecture.\n\n"
+    "<b>Available Modules:</b>\n"
+    "🔸 <i>Extract & Convert:</i> H5P ➔ PPTX / PDF\n"
+    "🔸 <i>Compile & Merge:</i> Stitch PDFs & Slide Decks\n"
+    "🔸 <i>Reverse Engineer:</i> PPTX ➔ Interactive H5P\n\n"
+    "<i>Select a module below, or simply drop a file into this chat to begin.</i>"
 )
 
 GUIDE_MSG = (
-    "📚 <b>EDU. 0 User Guide</b>\n\n"
-    "<b>1. Convert Files:</b> Simply drag and drop an .h5p file into this chat.\n"
-    "<b>2. Merge Documents:</b> Click 'Merge PDFs/PPTX' and upload your files one by one.\n"
-    "<b>3. Customize:</b> Upload a PPTX and click the 'Customize' button that appears.\n\n"
-    "<i>Need more help? Type /support</i>"
+    "📚 <b>Command Center Guide</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "<b>1. Auto-Detect:</b> Drag and drop an <code>.h5p</code> or <code>.pptx</code> file directly here. The engine will auto-detect the optimal conversion path.\n"
+    "<b>2. Batch Processing:</b> Use the Merge module to queue multiple documents in memory before compiling.\n"
+    "<b>3. UI Configuration:</b> Access layout settings via the inline module menus.\n\n"
+    "<i>System Status: 🟢 Online & Ready</i>"
 )
 
-# 3. Main Menu UI Builder
-def build_main_menu():
+# ==========================================
+# 3. INTERACTIVE WIDGETS
+# ==========================================
+def build_main_menu() -> InlineKeyboardMarkup:
+    """Builds a modern, clean inline keyboard dashboard."""
     keyboard = [
-        [InlineKeyboardButton("📤 Convert H5P to PDF/PPTX", callback_data='menu_convert')],
-        [InlineKeyboardButton("🗂️ Merge PDFs / PPTX", callback_data='menu_merge')],
-        [InlineKeyboardButton("🔄 Create H5P from PPTX", callback_data='menu_reverse')],
-        [InlineKeyboardButton("📖 Read User Guide", callback_data='menu_guide')]
+        [InlineKeyboardButton("📤 Extract H5P to PDF/PPTX", callback_data='menu_convert')],
+        [InlineKeyboardButton("🗂️ Compile & Merge Documents", callback_data='menu_merge')],
+        [InlineKeyboardButton("🔄 Reverse Engineer to H5P", callback_data='menu_reverse')],
+        [InlineKeyboardButton("⚙️ System Guide & Help", callback_data='menu_guide')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 4. Command Handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Fires when the user types /start"""
-    await update.message.reply_text(
-        text=WELCOME_MSG, 
-        reply_markup=build_main_menu(), 
-        parse_mode='HTML'
-    )
+# ==========================================
+# 4. CORE ROUTING HANDLERS
+# ==========================================
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Fires when the user initializes the bot."""
+    if update.message:
+        await update.message.reply_text(
+            text=WELCOME_MSG, 
+            reply_markup=build_main_menu(), 
+            parse_mode='HTML'
+        )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles all clicks on the Inline Keyboard"""
+async def inline_menu_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Routes all UI button clicks flawlessly."""
     query = update.callback_query
-    await query.answer() # Acknowledges the click to Telegram
+    if not query:
+        return
+        
+    await query.answer() # Snappy UX feedback
     
     if query.data == 'menu_guide':
         await query.edit_message_text(
             text=GUIDE_MSG, 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data='menu_back')]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Return to Main Dashboard", callback_data='menu_back')]]),
             parse_mode='HTML'
         )
     elif query.data == 'menu_back':
@@ -73,34 +91,61 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         await query.edit_message_text(
-            text=f"⚙️ <i>Initializing {query.data}... (Backend coming soon!)</i>",
+            text=f"⏳ <i>Loading module [{query.data}]...</i>\n\nPlease upload your target file.",
             parse_mode='HTML'
         )
 
-# 5. The Ultimate Exception Handler
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Logs the error and sends a friendly message to the user."""
-    logger.error(msg="Exception while handling an update:", exc_info=context.error)
+async def document_catcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Catches all file uploads and routes them to the Domain parser."""
+    if not update.message or not update.message.document:
+        return
     
-    # Friendly user-facing message (The "Educator Failsafe")
+    file_name = update.message.document.file_name or "Unknown_File"
+    
+    # Send a snappy loading state to the user
+    await update.message.reply_text(
+        f"📥 <b>Intercepted:</b> <code>{file_name}</code>\n"
+        f"<i>Allocating memory and preparing engine...</i>",
+        parse_mode='HTML'
+    )
+    # NOTE: We will plug the H5PParser in here next!
+
+# ==========================================
+# 5. FAILSAFE ARCHITECTURE
+# ==========================================
+async def global_error_handler(update: Any, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Bulletproof error catching to prevent bot crashes."""
+    logger.error(msg="Exception intercepted during execution:", exc_info=context.error)
+    
+    # Using 'Any' and safely checking type fixes the Pylance strict warning
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text(
-            "⚠️ <b>Oops! Something hiccuped.</b>\n"
-            "We encountered a slight issue processing that request. Please try again or check your file format.",
+            "⚠️ <b>System Anomaly Detected</b>\n"
+            "The engine encountered an unexpected data structure. Please verify your file integrity and try again.",
             parse_mode='HTML'
         )
 
-# 6. Application Execution
+# ==========================================
+# 6. SYSTEM INITIALIZATION
+# ==========================================
 if __name__ == '__main__':
-    # Replace 'YOUR_TOKEN' with the token from @BotFather
-    app = ApplicationBuilder().token('YOUR_TOKEN').build()
+    # Securely fetch environment tokens
+    bot_token = os.environ.get("BOT_TOKEN")
     
-    # Route Registration
-    app.add_handler(CommandHandler('start', start))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    if not bot_token:
+        logger.error("CRITICAL HALT: BOT_TOKEN environment variable is missing!")
+        exit(1)
+
+    # Initialize the high-performance async application
+    app = ApplicationBuilder().token(bot_token).build()
     
-    # Register the Global Error Handler
-    app.add_error_handler(error_handler)
+    # Register Routers
+    app.add_handler(CommandHandler('start', start_command))
+    app.add_handler(CallbackQueryHandler(inline_menu_router))
+    app.add_handler(MessageHandler(filters.Document.ALL, document_catcher)) # New Document Listener!
     
-    logger.info("🚀 EDU. 0 Bot is officially online!")
+    # Register Middleware
+    app.add_error_handler(global_error_handler)
+    
+    logger.info("🚀 EDU. 0 Engine is online and listening...")
     app.run_polling()

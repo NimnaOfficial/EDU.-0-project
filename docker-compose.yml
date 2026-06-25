@@ -1,0 +1,9 @@
+services:
+  edu_bot:
+    build: .
+    container_name: edu_bot_container
+    restart: unless-stopped
+    env_file:
+      - .env  # Much safer way to pass the token!
+    volumes:
+      - ./app:/app  # We keep this so you get live code updates!
