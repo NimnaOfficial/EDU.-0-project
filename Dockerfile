@@ -1,25 +1,27 @@
-# Use a lightweight, official Python image
 FROM python:3.11-slim
 
-# Set environment variables to prevent Python from writing .pyc files
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# 1. Install System Dependencies (Running as ROOT)
+RUN apt-get update && apt-get install -y \
+  libreoffice-core \
+  libreoffice-impress \
+  --no-install-recommends \
+  && rm -rf /var/lib/apt/lists/* # Cleans up cache to keep image small!
 
-# Create a secure, non-root user
+# 2. Create the secure bot user
 RUN adduser --disabled-password --gecos "" eduuser
 
-# Set the working directory
+# 3. Set the working directory
 WORKDIR /app
 
-# Install dependencies first (to leverage Docker caching)
+# 4. Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# 5. Copy your bot's source code
 COPY ./app .
 
-# Switch to the non-root user
+# 6. Switch to the secure user right before running the bot
 USER eduuser
 
-# Command to run the bot
+# 7. Start the engine
 CMD ["python", "main.py"]

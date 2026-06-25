@@ -18,6 +18,9 @@ from domain.parser import H5PParser
 from infra.pptx_adapter import PPTXBuilder
 from infra.pdf_adapter import PDFBuilder
 
+from infra.reverse_adapter import ReverseEngineer
+
+from infra.merger_adapter import DocumentMerger
 # ==========================================
 # 1. SERVER LOGGING
 # ==========================================
@@ -114,6 +117,54 @@ async def inline_menu_router(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode='HTML'
         )
         
+    if query.data == 'menu_reverse':
+        if context.user_data is not None:
+            context.user_data['active_module'] = 'reverse' # ◄── Tell the bot we are reversing!
+        await query.edit_message_text(
+            "🔄 <b>Reverse Engineer Activated</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "<i>Upload a standard .pdf or .pptx file, and I will rasterize it into a high-res interactive .h5p web package.</i>",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancel", callback_data='menu_back')]]),
+            parse_mode='HTML'
+        )
+        return
+        
+    if query.data == 'menu_convert':
+        if context.user_data is not None:
+            context.user_data['active_module'] = 'convert'
+        
+    # --- THE MERGE DASHBOARD ROUTER ---
+    if query.data == 'menu_merge':
+        if context.user_data is not None:
+            context.user_data['merge_queue'] = []
+            context.user_data['merge_names'] = []
+            context.user_data['merge_type'] = None # ◄── Add this! Tracks PDF vs PPTX
+        
+        await query.edit_message_text(
+            "🗂️ <b>Merge Engine Activated</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "<i>Upload PDFs or PPTXs one by one in the order you want them stitched.</i>\n\n"
+            "<b>Current Queue:</b> Empty",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data='fmt_cancel')]]),
+            parse_mode='HTML'
+        )
+        return
+
+    if query.data == 'queue_merge':
+        await process_merge(update, context)
+        return
+        
+    if query.data == 'queue_clear':
+        if context.user_data is not None:
+            context.user_data['merge_queue'] = []
+            context.user_data['merge_names'] = []
+        await query.edit_message_text(
+            "🗑️ <b>Queue Cleared.</b>\n<i>Upload a PDF to start a new batch.</i>", 
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data='fmt_cancel')]]),
+            parse_mode='HTML'
+        )
+        return
+        
 async def process_compilation(update: Update, context: ContextTypes.DEFAULT_TYPE, format_type: str) -> None:
     """Handles the actual file building based on what the user clicked."""
     query = update.callback_query
@@ -171,25 +222,175 @@ async def process_compilation(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Compilation Error: {e}")
         await query.edit_message_text("⚠️ <b>Compilation Failed</b>\nAn error occurred during rendering.", parse_mode='HTML')
 
+async def process_merge(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Executes the final compilation of all queued documents."""
+    query = update.callback_query
+    if not query or context.user_data is None:
+        return
+        
+    queue = context.user_data.get('merge_queue', [])
+    queue_type = context.user_data.get('merge_type', 'pdf')
+    
+    if len(queue) < 2:
+        await query.answer("⚠️ You need at least 2 documents to merge!", show_alert=True)
+        return
+
+    await query.edit_message_text(f"⚙️ <b>Stitching {len(queue)} {queue_type.upper()} Documents...</b>\n<i>Please wait while the master engine aligns the pages.</i>", parse_mode='HTML')
+
+    try:
+        # Route to the correct compiler
+        if queue_type == 'pdf':
+            master_doc = await DocumentMerger.merge_pdfs(queue)
+        else:
+            master_doc = await DocumentMerger.merge_pptxs(queue)
+        
+        if update.effective_chat:
+            await context.bot.send_document(
+                chat_id=update.effective_chat.id,
+                document=master_doc,
+                filename=f"EDU_0_Master_Compilation.{queue_type}",
+                caption=f"🎯 <b>Master {queue_type.upper()} Compilation Complete</b>\n━━━━━━━━━━━━━━━━━━━━\n📊 <b>Source Files:</b> {len(queue)}\n⚡ <i>Powered by EDU. 0 Engine</i>",
+                parse_mode='HTML',
+                read_timeout=120, write_timeout=120
+            )
+
+        await query.delete_message()
+        context.user_data.clear()
+
+    except Exception as e:
+        logger.error(f"Merge Execution Error: {e}")
+        await query.edit_message_text("⚠️ <b>Merge Failed</b>\nAn error occurred during final compilation.", parse_mode='HTML')
 # ==========================================
 # 4. FILE CATCHER
 # ==========================================
 async def document_catcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Catches file uploads, parses the data, and shows the format menu."""
-    if not update.message or not update.message.document:
+    """Catches file uploads, validates format, and routes to Extract or Merge engines."""
+    if not update.message or not update.message.document or context.user_data is None:
         return
     
     document = update.message.document
     file_name = document.file_name or "Unknown_File"
     
-    # Check if the file is an H5P file
-    if not file_name.endswith('.h5p'):
-        await update.message.reply_text(
-            "⚠️ <b>Unsupported Format</b>\n"
-            f"You uploaded <code>{file_name}</code>.\n"
-            "Currently, the engine only accepts raw <code>.h5p</code> packages for extraction.",
+    # ==========================================
+    # ROUTE A: MERGE MODE (Smart Stitching)
+    # ==========================================
+    if 'merge_queue' in context.user_data:
+        ext = file_name.split('.')[-1].lower()
+        
+        if ext not in ['pdf', 'pptx']:
+            await update.message.reply_text("⚠️ <b>Invalid Format.</b>\nMerge mode only supports <code>.pdf</code> or <code>.pptx</code> files.", parse_mode='HTML')
+            return
+            
+        # SMART LOCK: Prevent mixing PDFs and PPTXs
+        queue_type = context.user_data.get('merge_type')
+        if not queue_type:
+            context.user_data['merge_type'] = ext # Lock the queue to the first file's type
+        elif queue_type != ext:
+            await update.message.reply_text(
+                f"⚠️ <b>Format Mismatch!</b>\n"
+                f"Your queue is currently locked to <b>{queue_type.upper()}</b> mode. You cannot mix formats.", 
+                parse_mode='HTML'
+            )
+            return
+            
+        status_msg = await update.message.reply_text(f"📥 <i>Adding <code>{file_name}</code> to {ext.upper()} queue...</i>", parse_mode='HTML')
+        
+        try:
+            tg_file = await context.bot.get_file(document.file_id, read_timeout=120)
+            buffer = io.BytesIO()
+            await tg_file.download_to_memory(out=buffer, read_timeout=120)
+            
+            context.user_data['merge_queue'].append(buffer)
+            context.user_data['merge_names'].append(file_name)
+            
+            queue_list = "\n".join([f"{i+1}. {name}" for i, name in enumerate(context.user_data['merge_names'])])
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"🔄 Compile Master {ext.upper()}", callback_data='queue_merge')],
+                [InlineKeyboardButton("🗑️ Clear Queue", callback_data='queue_clear')],
+                [InlineKeyboardButton("❌ Cancel", callback_data='fmt_cancel')]
+            ])
+            
+            await status_msg.edit_text(
+                f"🗂️ <b>{ext.upper()} Queued Successfully</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"<b>Current Sequence:</b>\n"
+                f"<code>{queue_list}</code>\n\n"
+                f"<i>Upload another to append, or click compile.</i>",
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            logger.error(f"Merge Queue Error: {e}")
+            await status_msg.edit_text("⚠️ Failed to add document to RAM buffer.")
+        return
+    
+    # ==========================================
+    # ROUTE C: REVERSE ENGINEER MODE
+    # ==========================================
+    if context.user_data.get('active_module') == 'reverse':
+        ext = file_name.split('.')[-1].lower()
+        
+        # Accept BOTH formats natively!
+        if ext not in ['pdf', 'pptx']:
+            await update.message.reply_text(
+                "⚠️ <b>Invalid Format</b>\n"
+                "Reverse mode supports <code>.pdf</code> and <code>.pptx</code> files.", 
+                parse_mode='HTML'
+            )
+            return
+
+        status_msg = await update.message.reply_text(
+            f"📥 <b>Intercepted:</b> <code>{file_name}</code>\n"
+            f"<i>Routing to Auto-Converter & Rasterizer engines...</i>", 
             parse_mode='HTML'
         )
+
+        try:
+            # 1. Download the static file to RAM
+            tg_file = await context.bot.get_file(document.file_id, read_timeout=120)
+            doc_buffer = io.BytesIO()
+            await tg_file.download_to_memory(out=doc_buffer, read_timeout=120)
+
+            await status_msg.edit_text(
+                f"⚙️ <b>Rasterizing:</b> <code>{file_name}</code>\n"
+                f"<i>Extracting pages and compiling dynamic HTML5 JSON blueprints...</i>", 
+                parse_mode='HTML'
+            )
+
+            # 2. Invoke the Reverse Engineer Engine
+            h5p_stream = await ReverseEngineer.generate_h5p(doc_buffer, file_name)
+            
+            # Clean filename for output
+            output_filename = file_name.rsplit('.', 1)[0] + "_EDU_Interactive.h5p"
+
+            await status_msg.edit_text("🚀 <b>Architecture Compiled!</b>\n<i>Dispatching interactive H5P package...</i>", parse_mode='HTML')
+
+            # 3. Deliver the final interactive file
+            if update.effective_chat:
+                await context.bot.send_document(
+                    chat_id=update.effective_chat.id,
+                    document=h5p_stream,
+                    filename=output_filename,
+                    caption="🔄 <b>Reverse Engineered Successfully</b>\n⚡ <i>Powered by EDU. 0 Engine</i>",
+                    parse_mode='HTML',
+                    read_timeout=120, write_timeout=120
+                )
+
+            # Cleanup
+            await status_msg.delete()
+            context.user_data.clear()
+
+        except Exception as e:
+            logger.error(f"Reverse Engineer Error: {e}")
+            await status_msg.edit_text("⚠️ <b>System Anomaly</b>\nFailed to reverse engineer document.", parse_mode='HTML')
+
+        return
+    
+    # Check if the file is an H5P file
+    # Check if the file is an H5P file
+    if not file_name.endswith('.h5p'):
+        await update.message.reply_text("⚠️ <b>Unsupported Format</b>...", parse_mode='HTML')
         return
 
     file_size_display = f"{round(document.file_size / (1024 * 1024), 2)} MB" if document.file_size else "Unknown size"
