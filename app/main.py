@@ -619,9 +619,19 @@ async def global_error_handler(update: Any, context: ContextTypes.DEFAULT_TYPE) 
             parse_mode='HTML'
         )
 
-# ==========================================
-# 6. BOOT SEQUENCE
-# ==========================================
+# --- RENDER HEALTH CHECK SERVER ---
+def run_health_check():
+    class HealthCheckHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"EDU. 0 Engine is Active.")
+
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    server.serve_forever()
+
+# --- 6. BOOT SEQUENCE ---
 if __name__ == '__main__':
     bot_token = os.environ.get("BOT_TOKEN")
     
@@ -639,29 +649,16 @@ if __name__ == '__main__':
         .build()
     )
     
+    # 1. Register Handlers (Cleaned up duplicates)
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(CallbackQueryHandler(inline_menu_router))
     app.add_handler(MessageHandler(filters.Document.ALL, document_catcher))
-    # Register Routers
-    app.add_handler(CommandHandler('start', start_command))
-    app.add_handler(CallbackQueryHandler(inline_menu_router))
-    app.add_handler(MessageHandler(filters.Document.ALL, document_catcher))
-    
-    # NEW: Catch any text message that contains "http"
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'http'), link_catcher))
     app.add_error_handler(global_error_handler)
     
-# --- RENDER HEALTH CHECK SERVER ---
-def run_health_check():
-    class HealthCheckHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"EDU. 0 Engine is Active.")
-
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    server.serve_forever()
+    # 2. Start Health Check in background thread
+    threading.Thread(target=run_health_check, daemon=True).start()
     
+    # 3. Start Bot (Now correctly placed outside the health check function!)
     logger.info("🚀 EDU. 0 Engine is online and listening...")
     app.run_polling()
