@@ -104,46 +104,54 @@ This application is designed for seamless CI/CD deployment on Render using a spe
 ---
 
 ## 🗺️ System Architecture
+```mermaid
+graph TD
+    %% Styling
+    classDef user fill:#2CA5E0,stroke:#fff,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef core fill:#2C3E50,stroke:#3498DB,stroke-width:2px,color:#fff;
+    classDef process fill:#F39C12,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef adapter fill:#E74C3C,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef output fill:#27AE60,stroke:#fff,stroke-width:2px,color:#fff;
 
-```text
-+-----------------------------------------------------------------------------------+
-|                           EDU. 0 ENGINE SYSTEM ARCHITECTURE                       |
-+-----------------------------------------------------------------------------------+
-|                                                                                   |
-|  [ Telegram Client ]                                                              |
-|         │                                                                         |
-|         │ (1) User sends .h5p file or URL                                         |
-|         ▼                                                                         |
-|  +-----------------------------------------------------------------------------+  |
-|  |                             MAIN APPLICATION LOOP                           |  |
-|  |  +-----------------------+                         +---------------------+  |  |
-|  |  |  URL Scraper Module   |   (2) Buffer stream     | H5P Extractor (ZIP) |  |  |
-|  |  |  (httpx Bypass)       | ──────────────────────► | (In-Memory Parsing) |  |  |
-|  |  +-----------------------+                         +----------+----------+  |  |
-|  +---------------------------------------------------------------+-----------------+  |
-|                                                                  │ (3) Pydantic    |
-|  +---------------------------------------------------------------+ Object Model    |
-|  |                                  COMPILER ENGINE              │                 |
-|  |                                                               ▼                 |
-|  |  +-----------------------------------+      +--------------------------------+  |
-|  |  |       PPTX ADAPTER (V2.0)         |      |          PDF ADAPTER           |  |
-|  |  | --------------------------------- |      | ------------------------------ |  |
-|  |  | • 16:9 Widescreen Math            |  OR  | • ReportLab Platypus Engine    |  |
-|  |  | • Z-Index Painter's Algorithm     |      | • Custom UI Typography Styles  |  |
-|  |  | • H5PRichTextParser (HTML to XML) |      | • Dynamic Image Scaling        |  |
-|  |  +-----------------------------------+      +--------------------------------+  |
-|  |                    │                                         │                  |
-|  +--------------------+-----------------------------------------+------------------+  |
-|                       │ (4) Binary Document Stream              │                     |
-|                       ▼                                         ▼                     |
-|             [ .pptx Output Buffer ]                   [ .pdf Output Buffer ]          |
-|                       │                                         │                     |
-|                       +------------------+----------------------+                     |
-|                                          │                                            |
-|                                          ▼                                            |
-|                                  [ Telegram Client ]                                  |
-|                                  (5) File Delivered                                   |
-+-----------------------------------------------------------------------------------+
+    %% Entry Point
+    U1((🧑‍💻 User via Telegram)):::user
+
+    %% Main System Subgraph
+    subgraph EDU. 0 CORE ARCHITECTURE
+        direction TB
+        
+        S1[🔗 httpx Scraper Module]:::process
+        S2[📦 H5P ZIP Extractor]:::process
+        P{🧠 Pydantic Parser Engine}:::core
+
+        subgraph COMPILERS
+            direction LR
+            A1[📊 PPTX Adapter V2.0\n16:9 Widescreen & Z-Index]:::adapter
+            A2[📄 PDF Adapter\nReportLab Platypus Engine]:::adapter
+        end
+
+        O1[🖥️ .pptx RAM Buffer]:::output
+        O2[📑 .pdf RAM Buffer]:::output
+    end
+
+    %% Exit Point
+    U2((📥 File Delivered to User)):::user
+
+    %% The Wiring (Connections)
+    U1 -- 1. Drops LMS Link --> S1
+    U1 -- 1. Uploads .h5p --> S2
+    
+    S1 -- 2. Bypass & Download --> S2
+    S2 -- 3. Decompress to RAM --> P
+    
+    P -- 4a. Maps to Slide Layouts --> A1
+    P -- 4b. Maps to Doc UI Flow --> A2
+    
+    A1 -- 5. Compiles XML --> O1
+    A2 -- 5. Compiles Typography --> O2
+    
+    O1 -- 6. Flushes to API --> U2
+    O2 -- 6. Flushes to API --> U2
+    
 ```
-
 <p><em>Architected and engineered by Nimna.</em></p>
