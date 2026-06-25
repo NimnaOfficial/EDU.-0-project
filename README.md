@@ -80,3 +80,69 @@ docker-compose up -d --build
 ```
 
 *The engine will download the base images, install LibreOffice dependencies, and boot the bot. Watch the logs using docker-compose logs -f to see the "EDU. 0 Engine is online" confirmation.*
+
+## ☁️ Production Deployment (Render)
+
+This application is designed for seamless CI/CD deployment on Render using a specialized Health Check Sidecar to bypass port-binding restrictions.
+
+1. Connect this GitHub repository to Render as a **Web Service** (Docker Environment).
+2. Under **Environment Variables**, add:
+   * `BOT_TOKEN` : `your_telegram_bot_token_here`
+   * `PORT` : `10000`
+3. Set the **Start Command** to: `python main.py`
+4. Deploy. The internal `BaseHTTPRequestHandler` will automatically ping Render on Port 10000 to keep the container alive while the asynchronous polling loop connects to Telegram.
+
+---
+
+## ⚙️ How It Works (The Pipeline)
+
+1. **Ingestion:** User uploads a `.h5p` file or drops a valid LMS URL.
+2. **Decompression:** `parser.py` intercepts the file in RAM, unzips the architecture, and maps the `h5p.json` tree against the `content/` binary assets.
+3. **Compilation:** Based on user selection, the parsed Pydantic object is routed to the `PPTXBuilder` or `PDFBuilder`.
+4. **Delivery:** The finished document buffer is flushed back to the Telegram API and delivered to the user with zero disk-write overhead.
+
+---
+
+## 🗺️ System Architecture
+
+```text
++-----------------------------------------------------------------------------------+
+|                           EDU. 0 ENGINE SYSTEM ARCHITECTURE                       |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  [ Telegram Client ]                                                              |
+|         │                                                                         |
+|         │ (1) User sends .h5p file or URL                                         |
+|         ▼                                                                         |
+|  +-----------------------------------------------------------------------------+  |
+|  |                             MAIN APPLICATION LOOP                           |  |
+|  |  +-----------------------+                         +---------------------+  |  |
+|  |  |  URL Scraper Module   |   (2) Buffer stream     | H5P Extractor (ZIP) |  |  |
+|  |  |  (httpx Bypass)       | ──────────────────────► | (In-Memory Parsing) |  |  |
+|  |  +-----------------------+                         +----------+----------+  |  |
+|  +---------------------------------------------------------------+-----------------+  |
+|                                                                  │ (3) Pydantic    |
+|  +---------------------------------------------------------------+ Object Model    |
+|  |                                  COMPILER ENGINE              │                 |
+|  |                                                               ▼                 |
+|  |  +-----------------------------------+      +--------------------------------+  |
+|  |  |       PPTX ADAPTER (V2.0)         |      |          PDF ADAPTER           |  |
+|  |  | --------------------------------- |      | ------------------------------ |  |
+|  |  | • 16:9 Widescreen Math            |  OR  | • ReportLab Platypus Engine    |  |
+|  |  | • Z-Index Painter's Algorithm     |      | • Custom UI Typography Styles  |  |
+|  |  | • H5PRichTextParser (HTML to XML) |      | • Dynamic Image Scaling        |  |
+|  |  +-----------------------------------+      +--------------------------------+  |
+|  |                    │                                         │                  |
+|  +--------------------+-----------------------------------------+------------------+  |
+|                       │ (4) Binary Document Stream              │                     |
+|                       ▼                                         ▼                     |
+|             [ .pptx Output Buffer ]                   [ .pdf Output Buffer ]          |
+|                       │                                         │                     |
+|                       +------------------+----------------------+                     |
+|                                          │                                            |
+|                                          ▼                                            |
+|                                  [ Telegram Client ]                                  |
+|                                  (5) File Delivered                                   |
++-----------------------------------------------------------------------------------+
+```
+
