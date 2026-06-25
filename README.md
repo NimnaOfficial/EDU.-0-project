@@ -146,3 +146,4 @@ This application is designed for seamless CI/CD deployment on Render using a spe
 +-----------------------------------------------------------------------------------+
 ```
 
+<p><em>Architected and engineered by Nimna.</em></p>
