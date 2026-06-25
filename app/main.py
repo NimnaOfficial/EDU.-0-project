@@ -1,7 +1,10 @@
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import io
 import logging
 import re
+
 from telegram.ext import filters, MessageHandler
 from infra.scraper_adapter import WebScraper
 from typing import Any
@@ -647,6 +650,18 @@ if __name__ == '__main__':
     # NEW: Catch any text message that contains "http"
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'http'), link_catcher))
     app.add_error_handler(global_error_handler)
+    
+# --- RENDER HEALTH CHECK SERVER ---
+def run_health_check():
+    class HealthCheckHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"EDU. 0 Engine is Active.")
+
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    server.serve_forever()
     
     logger.info("🚀 EDU. 0 Engine is online and listening...")
     app.run_polling()
