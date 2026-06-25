@@ -1,6 +1,9 @@
 import os
 import io
 import logging
+import re
+from telegram.ext import filters, MessageHandler
+from infra.scraper_adapter import WebScraper
 from typing import Any
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -178,7 +181,7 @@ async def inline_menu_router(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if context.user_data is not None:
             context.user_data['active_module'] = 'convert'
         await query.edit_message_text(
-            "⏳ <i>Loading Extraction module...</i>\n\nPlease upload your target .h5p file.",
+            "⏳ <i>Loading Extraction module...</i>\n\nPlease upload your target .h5p file or link with embedded iframe.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancel", callback_data='menu_back')]]),
             parse_mode='HTML'
         )
@@ -367,6 +370,8 @@ async def document_catcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     document = update.message.document
     file_name = document.file_name or "Unknown_File"
     
+    
+    
     # ==========================================
     # ROUTE A: MERGE MODE (Smart Stitching)
     # ==========================================
@@ -544,6 +549,59 @@ async def document_catcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         logger.error(f"Unexpected pipeline error: {e}")
         await status_msg.edit_text(f"⚠️ <b>System Anomaly</b>\nAn unexpected error occurred during extraction. Please try again.", parse_mode='HTML')
 
+async def link_catcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Catches text messages containing URLs and routes them to the Scraper."""
+    if not update.message or not update.message.text:
+        return
+
+    text = update.message.text
+    
+    status_msg = await update.message.reply_text(
+        "🌐 <b>Link Detected</b>\n<i>Initializing Web Scraper Engine...</i>", 
+        parse_mode='HTML'
+    )
+
+    try:
+        # 1. Scrape the file
+        h5p_buffer, file_name = await WebScraper.fetch_h5p_from_link(text)
+        
+        await status_msg.edit_text(
+            f"✅ <b>Download Successful:</b> <code>{file_name}</code>\n"
+            f"<i>Decompressing architecture...</i>",
+            parse_mode='HTML'
+        )
+
+        # 2. Inject directly into your existing Extract Engine
+        parsed_data = await H5PParser.extract_architecture(h5p_buffer)
+        asset_count = len(parsed_data.raw_assets)
+        
+        if context.user_data is not None:
+            context.user_data['current_h5p'] = parsed_data
+            context.user_data['current_filename'] = file_name
+
+        format_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 Compile as PPTX", callback_data='fmt_pptx')],
+            [InlineKeyboardButton("📄 Compile as PDF", callback_data='fmt_pdf')],
+            [InlineKeyboardButton("📦 Compile BOTH", callback_data='fmt_both')],
+            [InlineKeyboardButton("❌ Cancel", callback_data='fmt_cancel')]
+        ])
+
+        await status_msg.edit_text(
+            f"✅ <b>Extraction Complete</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>Title:</b> {parsed_data.metadata.title}\n"
+            f"<b>Assets:</b> {asset_count} media files mapped\n\n"
+            f"<i>Select your preferred output format below:</i>",
+            reply_markup=format_keyboard,
+            parse_mode='HTML'
+        )
+
+    except PermissionError as e:
+        await status_msg.edit_text(f"🛑 {str(e)}", parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Scraping Error: {e}")
+        await status_msg.edit_text("⚠️ <b>Scrape Failed.</b>\nThe link may be invalid or highly protected.", parse_mode='HTML')
+
 # ==========================================
 # 5. ERROR HANDLER
 # ==========================================
@@ -581,6 +639,13 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(CallbackQueryHandler(inline_menu_router))
     app.add_handler(MessageHandler(filters.Document.ALL, document_catcher))
+    # Register Routers
+    app.add_handler(CommandHandler('start', start_command))
+    app.add_handler(CallbackQueryHandler(inline_menu_router))
+    app.add_handler(MessageHandler(filters.Document.ALL, document_catcher))
+    
+    # NEW: Catch any text message that contains "http"
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'http'), link_catcher))
     app.add_error_handler(global_error_handler)
     
     logger.info("🚀 EDU. 0 Engine is online and listening...")
