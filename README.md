@@ -1,3 +1,4 @@
+<div align="center">
 # 🎓 EDU. 0 Engine 
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python&logoColor=white)
@@ -9,8 +10,9 @@
 
 Built with a focus on modern UI/UX and robust software architecture, the engine operates entirely in RAM without writing temporary files to disk, ensuring lightning-fast conversions and strict data security.
 
----
 
+---
+</div>
 ## 🚀 Core Architecture & Features
 
 * **Asynchronous Event Loop:** Built on `python-telegram-bot` v21+, utilizing non-blocking `asyncio` threads to handle multiple concurrent document compilations without server lag.
