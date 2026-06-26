@@ -1,5 +1,8 @@
 <div align="center">
+ 
 # 🎓 EDU. 0 Engine 
+
+<br>
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=for-the-badge&logo=docker&logoColor=white)
