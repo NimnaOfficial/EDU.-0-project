@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![Telegram](https://img.shields.io/badge/Telegram-Bot_API-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)
-![Render](https://img.shields.io/badge/Deployed_on-Render-000000?style=for-the-badge&logo=render&logoColor=white)
+![Railway](https://img.shields.io/badge/Deployed_on-Railway-000000?style=for-the-badge&logo=railway&logoColor=white)
 
 **EDU. 0** is a high-performance, asynchronous Python bot engineered to extract raw interactive educational modules (`.h5p`) and dynamically compile them into beautifully formatted, 16:9 widescreen PowerPoint presentations and typography-rich PDF handouts. 
 
